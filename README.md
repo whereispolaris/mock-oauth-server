@@ -22,7 +22,7 @@ A fully-featured mock OAuth 2.0 / OpenID Connect server for testing Canva integr
 
 1. Clone this repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/whereispolaris/mock-oauth-server.git
 cd mock-oauth-server
 ```
 
