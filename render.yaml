@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: mock-oauth-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ISSUER
+        sync: false
+    healthCheckPath: /health

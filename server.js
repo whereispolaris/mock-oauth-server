@@ -686,90 +686,124 @@ function authenticateToken(req, res, next) {
 }
 
 // ============================================================================
-// HTTPS SERVER STARTUP
+// SERVER STARTUP
 // ============================================================================
 
 /**
- * Start HTTPS server with SSL certificates
- * 
- * Canva requires HTTPS for all OAuth endpoints, so this function sets up
- * a proper HTTPS server using SSL certificates. It supports both:
- * 1. mkcert certificates (trusted by browsers, best for development)
- * 2. OpenSSL self-signed certificates (browser warning, but functional)
+ * Start server with appropriate configuration for the environment
+ *
+ * Supports two deployment modes:
+ * 1. Production (Render, Heroku, etc.): HTTP server (platform handles HTTPS)
+ * 2. Local Development: HTTPS server with SSL certificates
+ *
+ * Canva requires HTTPS, but cloud platforms like Render provide this automatically.
  */
 function startServer() {
-  try {
-    let httpsOptions;
-    
-    // Check for mkcert certificates first (recommended)
-    const mkcertKey = path.join(__dirname, 'localhost-key.pem');
-    const mkcertCert = path.join(__dirname, 'localhost.pem');
-    
-    // Check for OpenSSL certificates as fallback
-    const opensslKey = path.join(__dirname, 'server-key.pem');
-    const opensslCert = path.join(__dirname, 'server-cert.pem');
-    
-    if (fs.existsSync(mkcertKey) && fs.existsSync(mkcertCert)) {
-      // Use mkcert certificates (best for development)
-      httpsOptions = {
-        key: fs.readFileSync(mkcertKey),
-        cert: fs.readFileSync(mkcertCert)
-      };
-      console.log('🔐 Using mkcert certificates (trusted by browser)');
-      
-    } else if (fs.existsSync(opensslKey) && fs.existsSync(opensslCert)) {
-      // Use OpenSSL certificates
-      httpsOptions = {
-        key: fs.readFileSync(opensslKey),
-        cert: fs.readFileSync(opensslCert)
-      };
-      console.log('🔐 Using OpenSSL self-signed certificates');
-      
-    } else {
-      throw new Error('No SSL certificates found');
-    }
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
 
-    // Start HTTPS server
-    https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
-      console.log(`🚀 HTTPS OAuth Server running on https://localhost:${HTTPS_PORT}`);
-      console.log('🔒 All OAuth endpoints now secured with HTTPS (Canva compliant!)');
+  if (isProduction) {
+    // ========== PRODUCTION MODE (Render, Heroku, etc.) ==========
+    // Cloud platforms handle HTTPS termination, so we use HTTP internally
+    const port = process.env.PORT || PORT;
+
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 OAuth Server running on port ${port}`);
+      console.log(`🌍 Environment: PRODUCTION (${process.env.RENDER ? 'Render' : 'Cloud Platform'})`);
+      console.log('🔒 HTTPS handled by platform');
       console.log('');
-      console.log('📋 Canva Developer Portal Settings (HTTPS):');
-      console.log(`   Provider: https://localhost:${HTTPS_PORT}`);
+      console.log('📋 OAuth Provider Configuration:');
+      console.log(`   Issuer: ${CONFIG.issuer}`);
       console.log(`   Client ID: ${CONFIG.clientId}`);
-      console.log(`   Client Secret: ${CONFIG.clientSecret}`);
-      console.log(`   Authorization URL: https://localhost:${HTTPS_PORT}/authorize`);
-      console.log(`   Token Exchange URL: https://localhost:${HTTPS_PORT}/token`);
-      console.log(`   Revocation URL: https://localhost:${HTTPS_PORT}/revoke`);
-      console.log(`   PKCE: Enabled (S256 and plain supported)`);
+      console.log(`   Client Secret: ${CONFIG.clientSecret ? '***' + CONFIG.clientSecret.slice(-4) : 'Not Set'}`);
       console.log('');
-      console.log('🔍 Discovery: https://localhost:8443/.well-known/openid-configuration');
-      console.log('💡 Health Check: https://localhost:8443/health');
+      console.log('📖 Endpoints:');
+      console.log(`   Discovery: ${CONFIG.issuer}/.well-known/openid-configuration`);
+      console.log(`   Authorization: ${CONFIG.issuer}/authorize`);
+      console.log(`   Token: ${CONFIG.issuer}/token`);
+      console.log(`   User Info: ${CONFIG.issuer}/userinfo`);
+      console.log(`   Revocation: ${CONFIG.issuer}/revoke`);
+      console.log(`   Health Check: ${CONFIG.issuer}/health`);
       console.log('');
-      console.log('📖 Ready to test secure OAuth flows with Canva! Check console for detailed request/response info.');
-      
-      if (!fs.existsSync(mkcertKey)) {
-        console.log('⚠️  Accept certificate warning in browser for first visit (OpenSSL certs)');
-      } else {
-        console.log('✅ Certificates trusted by browser (mkcert) - no security warnings!');
-      }
+      console.log('✅ Server ready for OAuth flows!');
     });
 
-  } catch (error) {
-    console.error('❌ Failed to start HTTPS server:', error.message);
-    console.log('');
-    console.log('🔧 SSL certificates not found. Please run one of these commands:');
-    console.log('');
-    console.log('Option 1 - Using mkcert (recommended for trusted certs):');
-    console.log('  brew install mkcert && mkcert -install && mkcert localhost');
-    console.log('');
-    console.log('Option 2 - Using OpenSSL (creates browser warning):');
-    console.log('  openssl req -x509 -newkey rsa:2048 -keyout server-key.pem -out server-cert.pem -days 365 -nodes -subj "/CN=localhost"');
-    console.log('');
-    console.log('Then run: npm start');
-    console.log('');
-    console.log('💡 Canva requires HTTPS for OAuth endpoints - HTTP will not work!');
-    process.exit(1);
+  } else {
+    // ========== LOCAL DEVELOPMENT MODE ==========
+    // Use HTTPS with SSL certificates for local testing
+    try {
+      let httpsOptions;
+
+      // Check for mkcert certificates first (recommended)
+      const mkcertKey = path.join(__dirname, 'localhost-key.pem');
+      const mkcertCert = path.join(__dirname, 'localhost.pem');
+
+      // Check for OpenSSL certificates as fallback
+      const opensslKey = path.join(__dirname, 'server-key.pem');
+      const opensslCert = path.join(__dirname, 'server-cert.pem');
+
+      if (fs.existsSync(mkcertKey) && fs.existsSync(mkcertCert)) {
+        // Use mkcert certificates (best for development)
+        httpsOptions = {
+          key: fs.readFileSync(mkcertKey),
+          cert: fs.readFileSync(mkcertCert)
+        };
+        console.log('🔐 Using mkcert certificates (trusted by browser)');
+
+      } else if (fs.existsSync(opensslKey) && fs.existsSync(opensslCert)) {
+        // Use OpenSSL certificates
+        httpsOptions = {
+          key: fs.readFileSync(opensslKey),
+          cert: fs.readFileSync(opensslCert)
+        };
+        console.log('🔐 Using OpenSSL self-signed certificates');
+
+      } else {
+        throw new Error('No SSL certificates found');
+      }
+
+      // Start HTTPS server
+      https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
+        console.log(`🚀 HTTPS OAuth Server running on https://localhost:${HTTPS_PORT}`);
+        console.log('🔒 All OAuth endpoints secured with HTTPS (Canva compliant!)');
+        console.log('🏠 Environment: LOCAL DEVELOPMENT');
+        console.log('');
+        console.log('📋 Canva Developer Portal Settings:');
+        console.log(`   Provider: https://localhost:${HTTPS_PORT}`);
+        console.log(`   Client ID: ${CONFIG.clientId}`);
+        console.log(`   Client Secret: ${CONFIG.clientSecret}`);
+        console.log(`   Authorization URL: https://localhost:${HTTPS_PORT}/authorize`);
+        console.log(`   Token Exchange URL: https://localhost:${HTTPS_PORT}/token`);
+        console.log(`   Revocation URL: https://localhost:${HTTPS_PORT}/revoke`);
+        console.log(`   PKCE: Enabled (S256 and plain supported)`);
+        console.log('');
+        console.log('🔍 Discovery: https://localhost:8443/.well-known/openid-configuration');
+        console.log('💡 Health Check: https://localhost:8443/health');
+        console.log('');
+        console.log('📖 Ready to test secure OAuth flows!');
+
+        if (!fs.existsSync(mkcertKey)) {
+          console.log('⚠️  Accept certificate warning in browser for first visit (OpenSSL certs)');
+        } else {
+          console.log('✅ Certificates trusted by browser (mkcert) - no security warnings!');
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to start HTTPS server:', error.message);
+      console.log('');
+      console.log('🔧 SSL certificates not found. Please run one of these commands:');
+      console.log('');
+      console.log('Option 1 - Using mkcert (recommended for trusted certs):');
+      console.log('  brew install mkcert && mkcert -install && mkcert localhost');
+      console.log('');
+      console.log('Option 2 - Using OpenSSL (creates browser warning):');
+      console.log('  openssl req -x509 -newkey rsa:2048 -keyout server-key.pem -out server-cert.pem -days 365 -nodes -subj "/CN=localhost"');
+      console.log('');
+      console.log('Then run: npm start');
+      console.log('');
+      console.log('💡 Canva requires HTTPS for OAuth endpoints - HTTP will not work locally!');
+      process.exit(1);
+    }
   }
 }
 

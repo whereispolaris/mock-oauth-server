@@ -12,6 +12,8 @@ A fully-featured mock OAuth 2.0 / OpenID Connect server for testing Canva integr
 - **Token revocation** endpoint for secure logout
 - **User info endpoint** with mock user data
 - **Comprehensive logging** for debugging OAuth flows
+- **Multi-environment support** (local HTTPS + cloud HTTP with platform-managed HTTPS)
+- **Zero-config deployment** to Render via render.yaml
 
 ## Prerequisites
 
@@ -68,6 +70,8 @@ The server can be configured using environment variables:
 
 ## Usage
 
+### Local Development
+
 Start the server:
 ```bash
 npm start
@@ -79,6 +83,42 @@ npm run dev
 ```
 
 The server will start on `https://localhost:8443` by default.
+
+### Deploying to Render
+
+1. **Push to GitHub** (if you haven't already):
+```bash
+git push origin main
+```
+
+2. **Create a new Web Service on Render**:
+   - Go to [render.com](https://render.com) and sign in
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+   - Render will detect the `render.yaml` configuration automatically
+
+3. **Configure Environment Variables**:
+   Add these in the Render dashboard under "Environment":
+   - `CLIENT_ID` - Your OAuth client ID (e.g., `canva-test-client`)
+   - `CLIENT_SECRET` - Your OAuth client secret (e.g., `canva-secret-key-12345`)
+   - `JWT_SECRET` - Your JWT signing secret (e.g., `mock-jwt-secret-key`)
+   - `ISSUER` - Leave empty initially, will set after first deploy
+
+4. **Deploy**:
+   - Click "Create Web Service"
+   - Wait for deployment to complete
+   - Copy your Render URL (e.g., `https://your-app.onrender.com`)
+
+5. **Update ISSUER Environment Variable**:
+   - Go back to Environment settings
+   - Set `ISSUER=https://your-app.onrender.com`
+   - Save changes (Render will auto-redeploy)
+
+6. **Verify Deployment**:
+   - Visit `https://your-app.onrender.com/health`
+   - Visit `https://your-app.onrender.com/.well-known/openid-configuration`
+
+**Note**: Render's free tier may spin down after 15 minutes of inactivity, causing a ~30 second cold start on the next request.
 
 ## Endpoints
 
